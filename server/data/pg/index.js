@@ -3,9 +3,11 @@ import * as hubs from './hubs.js'
 import * as features from './features.js'
 import * as security from './security.js'
 import * as calls from './calls.js'
+import * as mailer from './mailer.js'
 import * as chatbots from './chatbots.js'
 import * as checks from './checks.js'
+import * as grafana from './grafana.js'
 import * as settings from './settings.js'
 import * as authFailures from './authFailures.js'
 
-export const repos = { hubs, features, security, calls, chatbots, checks, settings, authFailures }
+export const repos = { hubs, features, security, calls, mailer, chatbots, checks, grafana, settings, authFailures }

@@ -6,7 +6,7 @@ vi.mock('../../db.js', () => ({ default: { from: () => ({}) } }))
 const { repos: supa } = await import('../supabase/index.js')
 const { repos: pg } = await import('../pg/index.js')
 
-// 영역 안에 하위 객체(chatbots.settings 등)가 있으면 그 함수 이름까지 비교한다.
+// 영역 안에 하위 객체(grafana.settings 등)가 있으면 그 함수 이름까지 비교한다.
 const shape = (obj) => Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) =>
   [k, typeof v === 'function' ? 'fn' : shape(v)]))
 

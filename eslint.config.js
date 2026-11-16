@@ -25,6 +25,8 @@ export default defineConfig([
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
       'react-hooks/set-state-in-effect': 'warn', // 데이터 로드 effect 패턴 — 알려진 경고로 둔다
+      'react-hooks/refs': 'warn', // 최신 값 ref 패턴(비동기 콜백 stale 방지) — 알려진 경고
+      'react-refresh/only-export-components': 'warn', // 상수·헬퍼를 함께 내보내는 모듈
     },
   },
   {

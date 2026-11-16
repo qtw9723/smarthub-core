@@ -3,7 +3,7 @@
 //
 // 레벨은 **모듈 단위**로 정한다. 모듈을 쓰는 사람(데이터를 넣는 사람)이 바꾸는 것이 아니라,
 // 관리자가 백오피스에서 조정한다(DB hub_module_security). 여기 값은 그 조정이 없을 때의 기본값이고,
-// "그 모듈이 담을 수 있는 최악"을 기준으로 매긴다.
+// "그 모듈이 담을 수 있는 최악"을 기준으로 매긴다. 설계: docs/superpowers/specs/2026-11-09-module-security-levels-design.md
 //
 // 참고한 사례: Kubernetes Pod Security Standards(레벨과 처리 방식 분리, 예외는 따로 기록),
 // Android protectionLevel(위험 등급은 플랫폼이 정함), 데이터 분류 4단계("노출되면 어떤 피해").
@@ -19,10 +19,11 @@ export const LEVEL_INFO = {
 
 // 새 모듈을 레지스트리에 넣으면 여기에도 넣는다(빠지면 테스트가 실패한다).
 export const MODULE_SECURITY_DEFAULTS = {
+  'sheet-to-schema': { level: 'L0', reason: '올린 시트를 변환만 하고 외부 호출·저장된 비밀이 없습니다' },
   'chatbot-monitoring': { level: 'L2', reason: '챗봇 목록과 점검 이력이 드러납니다' },
-  'csv-json': { level: 'L0', reason: '브라우저 안에서만 변환하고 아무것도 저장·전송하지 않습니다' },
-  'cron-explain': { level: 'L0', reason: '브라우저 안에서만 계산하고 아무것도 저장·전송하지 않습니다' },
-  'text-diff': { level: 'L0', reason: '브라우저 안에서만 비교하고 아무것도 저장·전송하지 않습니다' },
+  'grafana-reports': { level: 'L2', reason: '서버 지표·접속 정보와 수신자 목록이 드러납니다' },
+  'doc-to-api': { level: 'L2', reason: '호출할 때마다 외부 서비스 비용이 청구됩니다' },
+  mailer: { level: 'L3', reason: '저장된 발신 계정으로 실제 메일을 보냅니다' },
 }
 
 // 표에 없는 모듈은 보호 쪽으로 본다 — 빠뜨린 모듈이 조용히 공개 취급되면 안 된다.

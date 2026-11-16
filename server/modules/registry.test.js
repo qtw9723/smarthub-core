@@ -37,6 +37,23 @@ describe('server 모듈 레지스트리', () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
+  it('doc-to-api는 apiRouter를 갖고 overview는 없다', () => {
+    const m = getModule('doc-to-api')
+    expect(m).not.toBeNull()
+    expect(m.apiRouter).toBeTruthy()
+    expect(m.overview).toBeUndefined()
+  })
+
+  // 서버 파트가 전혀 없는 무상태 툴 — 백오피스 overview가 볼 수 있도록 { key }만 등록한다.
+  it('sheet-to-schema는 apiRouter·overview 없이 { key }만으로 등록된다', () => {
+    const m = getModule('sheet-to-schema')
+    expect(m).not.toBeNull()
+    expect(m.key).toBe('sheet-to-schema')
+    expect(m.apiRouter).toBeUndefined()
+    expect(m.overview).toBeUndefined()
+  })
+
+  // 무상태 툴 모듈(서버 파트 없음)이 섞여 있어도 마운트가 터지지 않아야 한다.
   it('apiRouter 없는 모듈이 있어도 마운트 루프가 안전하다', async () => {
     const express = (await import('express')).default
     const app = express()

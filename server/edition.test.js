@@ -12,19 +12,19 @@ describe('edition()', () => {
   })
 })
 
-describe('점검 러너 드라이버 선택', () => {
+describe('첨부 드라이버 선택', () => {
   it('기본은 외부 구현', async () => {
     vi.stubEnv('SMARTHUB_EDITION', '')
-    vi.doMock('./editions/external/checkRunner.js', () => ({ which: 'external' }))
-    vi.doMock('./editions/internal/checkRunner.js', () => ({ which: 'internal' }))
-    const { checkRunner } = await import('./editions/checkRunner.js')
-    expect(checkRunner.which).toBe('external')
+    vi.doMock('./editions/external/attachments.js', () => ({ which: 'external' }))
+    vi.doMock('./editions/internal/attachments.js', () => ({ which: 'internal' }))
+    const { attachments } = await import('./editions/attachments.js')
+    expect(attachments.which).toBe('external')
   })
   it('internal이면 사내 구현', async () => {
     vi.stubEnv('SMARTHUB_EDITION', 'internal')
-    vi.doMock('./editions/external/checkRunner.js', () => ({ which: 'external' }))
-    vi.doMock('./editions/internal/checkRunner.js', () => ({ which: 'internal' }))
-    const { checkRunner } = await import('./editions/checkRunner.js')
-    expect(checkRunner.which).toBe('internal')
+    vi.doMock('./editions/external/attachments.js', () => ({ which: 'external' }))
+    vi.doMock('./editions/internal/attachments.js', () => ({ which: 'internal' }))
+    const { attachments } = await import('./editions/attachments.js')
+    expect(attachments.which).toBe('internal')
   })
 })

@@ -62,11 +62,11 @@ describe('judgeStep', () => {
 describe('buildFailureMail', () => {
   it('실패 봇 목록으로 제목·본문 생성', () => {
     const { subject, body } = buildFailureMail([
-      { name: '코기 상담봇', detail: 'timeout: 키워드 "도와드릴까요" 미노출' },
+      { name: '샘플봇 상담봇', detail: 'timeout: 키워드 "도와드릴까요" 미노출' },
       { name: 'FAQ봇', detail: 'input_not_found' },
     ], 'https://hub.example.com')
     expect(subject).toBe('🤖 챗봇 체크 실패 2건')
-    expect(body).toContain('코기 상담봇')
+    expect(body).toContain('샘플봇 상담봇')
     expect(body).toContain('input_not_found')
     expect(body).toContain('https://hub.example.com')
   })

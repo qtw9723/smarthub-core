@@ -26,7 +26,8 @@ import { securityPopupSeen, markSecurityPopupSeen } from '../lib/securityPopupSe
 const ALL_MODULES = getModules() // 클라 레지스트리 (key, label, icon 포함)
 const DEFAULT_LEVEL_MAP = defaultLevelMap()
 const SHORT_LABEL = {
-  'chatbot-monitoring': '챗봇',
+  'chatbot-monitoring': '챗봇', 'grafana-reports': 'Grafana', mailer: '메일',
+  'sheet-to-schema': '스키마 변환', 'doc-to-api': 'API 생성',
 }
 
 const isUnauthorized = (e) => e?.message === 'UNAUTHORIZED'
@@ -180,11 +181,11 @@ export default function AdminPage() {
       : `${firstFailing.botName} 챗봇 실패 (${firstFailing.hubKey})` + (failingTotal > 1 ? ` 외 ${failingTotal - 1}건` : '')
 
     const events = activity?.events ?? []
-    const sendEvents = events.filter(e => e.type === 'chatbot' && e.severity === 'good')
+    const sendEvents = events.filter(e => (e.type === 'grafana' || e.type === 'mailer') && e.severity === 'good')
     const latestSend = sendEvents[0]
     const sendSub = latestSend
       ? `${latestSend.title} · ${fmtKst(latestSend.at).slice(11)}`
-      : '최근 정상 점검 없음'
+      : '최근 발송 없음'
 
     // 잠그는 것을 잊는 사고를 막는 경고: 비밀번호 없는 허브에서 비밀번호가 필요한(L2+) 모듈이 켜진 조합.
     // 판정은 src/lib/securityPolicy.js(실효 레벨 맵). 확인된 예외(acked)는 배너·팝업에서 빼고 카드에 회색으로 남긴다.
@@ -429,7 +430,7 @@ export default function AdminPage() {
           </div>
           <div className="tile ok">
             <span className="stripe" />
-            <span className="k">최근 정상 점검</span>
+            <span className="k">최근 발송</span>
             <span className="v tnum">{summary.sendCount}</span>
             <span className="sub">{summary.sendSub}</span>
           </div>
@@ -825,6 +826,40 @@ function StatRow({ feature }) {
         {failing > 0
           ? <span className="pill crit"><span className="dot" />{bad?.name ?? '점검 필요'}</span>
           : <span className="pill good"><span className="dot" />정상</span>}
+      </div>
+    )
+  }
+
+  if (feature.key === 'grafana-reports') {
+    const alertCount = s.last_alert_count ?? 0
+    return (
+      <div className="statrow">
+        <span className="ml">{ml}</span>
+        <div className="metrics">
+          <div className="metric"><span className="mv">{s.last_analysis_date ?? '없음'}</span><span className="mk">최근 분석</span></div>
+          <div className="metric"><span className="mv tnum">{alertCount}</span><span className="mk">점검 포인트</span></div>
+        </div>
+        {s.enabled === false
+          ? <span className="pill idle"><span className="dot" />비활성</span>
+          : alertCount > 0
+            ? <span className="pill warn"><span className="dot" />{alertCount}건</span>
+            : <span className="pill good"><span className="dot" />정상</span>}
+      </div>
+    )
+  }
+
+  if (feature.key === 'mailer') {
+    const active = s.active_count ?? 0
+    return (
+      <div className="statrow">
+        <span className="ml">{ml}</span>
+        <div className="metrics">
+          <div className="metric"><span className="mv tnum">{s.job_count ?? 0}</span><span className="mk">잡</span></div>
+          <div className="metric"><span className="mv tnum">{active}</span><span className="mk">활성</span></div>
+        </div>
+        {active > 0
+          ? <span className="pill good"><span className="dot" />발송중</span>
+          : <span className="pill idle"><span className="dot" />대기</span>}
       </div>
     )
   }

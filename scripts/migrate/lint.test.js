@@ -35,9 +35,9 @@ describe('lintCommonSql', () => {
 })
 
 describe('OWNED_TABLES', () => {
-  it('소유 테이블 9개', () => {
-    expect(OWNED_TABLES).toHaveLength(9)
-    expect(OWNED_TABLES).toContain('hub_chatbots')
+  it('소유 테이블 17개', () => {
+    expect(OWNED_TABLES).toHaveLength(17)
+    expect(OWNED_TABLES).toContain('mail_jobs')
   })
 })
 

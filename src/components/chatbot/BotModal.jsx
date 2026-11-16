@@ -71,7 +71,7 @@ export default function BotModal({ bot, onSubmit, onClose, loading, categories =
       <form onSubmit={handleSubmit}>
         <div className="form-field">
           <label className="form-label" htmlFor="bot-name">이름</label>
-          <input id="bot-name" className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="예: 코기 상담봇" required />
+          <input id="bot-name" className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="예: 샘플봇 상담봇" required />
         </div>
         <div className="form-field">
           <label className="form-label" htmlFor="bot-url">챗봇 URL</label>

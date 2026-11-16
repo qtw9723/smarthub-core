@@ -11,8 +11,11 @@ const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const err = (status, error, extra = {}) => json({ error, ...extra }, status)
 
-const MODULES = [{ key: 'chatbot-monitoring' }, { key: 'csv-json' }, { key: 'cron-explain' }, { key: 'text-diff' }]
-const SECURITY_DEFAULT = { 'chatbot-monitoring': 'L2', 'csv-json': 'L0', 'cron-explain': 'L0', 'text-diff': 'L0' }
+import { handleModule, moduleEvents } from './mockModules.js'
+
+const MODULES = [{ key: 'chatbot-monitoring' }, { key: 'grafana-reports' }, { key: 'mailer' }, { key: 'sheet-to-schema' }, { key: 'doc-to-api' }]
+// 모듈별 기본 보안 등급(shared/securityPolicy.js와 같은 값)
+const SECURITY_DEFAULT = { 'chatbot-monitoring': 'L2', 'grafana-reports': 'L2', mailer: 'L3', 'sheet-to-schema': 'L0', 'doc-to-api': 'L2' }
 const LEVELS = ['L0', 'L1', 'L2', 'L3']
 
 let seq = 100
@@ -20,15 +23,15 @@ const uid = (p) => `${p}-${++seq}`
 
 // ── 시드 ───────────────────────────────────────────────────────────────
 const hubs = [
-  { id: 'hub-1', key: 'delivery', name: '배달팀', enabled: true, password: null, security_ack_level: 'L2', created_at: ago(60 * 24 * 40) },
-  { id: 'hub-2', key: 'support', name: '고객지원팀', enabled: true, password: null, security_ack_level: null, created_at: ago(60 * 24 * 30) },
+  { id: 'hub-1', key: 'delivery', name: '배달팀', enabled: true, password: null, security_ack_level: 'L3', created_at: ago(60 * 24 * 40) },
+  { id: 'hub-2', key: 'support', name: '고객지원팀', enabled: true, password: null, security_ack_level: 'L3', created_at: ago(60 * 24 * 30) },
   { id: 'hub-3', key: 'finance', name: '재무팀', enabled: true, password: null, security_ack_level: 'L2', created_at: ago(60 * 24 * 12) },
 ]
 // hub_features 매트릭스 — 허브마다 켠 모듈이 다르다.
 const ENABLED = {
-  'hub-1': ['chatbot-monitoring', 'csv-json', 'cron-explain', 'text-diff'],
-  'hub-2': ['chatbot-monitoring', 'text-diff'],
-  'hub-3': ['csv-json', 'cron-explain'],
+  'hub-1': ['chatbot-monitoring', 'grafana-reports', 'mailer', 'sheet-to-schema', 'doc-to-api'],
+  'hub-2': ['chatbot-monitoring', 'mailer'],
+  'hub-3': ['sheet-to-schema', 'doc-to-api'],
 }
 const features = Object.entries(ENABLED).flatMap(([hub_id, on]) =>
   MODULES.map((m, i) => ({ hub_id, feature_key: m.key, enabled: on.includes(m.key), config: {}, sort_order: i })))
@@ -110,6 +113,15 @@ async function handle(req, url) {
       features: features.filter((f) => f.hub_id === hub.id && f.enabled)
         .map((f) => ({ feature_key: f.feature_key, enabled: f.enabled, sort_order: f.sort_order })),
     })
+  }
+
+  // mailer · grafana-reports · doc-to-api (mockModules.js)
+  m = path.match(/^\/api\/modules\/(?:mailer|grafana-reports|doc-to-api)(\/.*)?$/)
+  if (m) {
+    const hub = hubByKey(url.searchParams.get('hub') || 'delivery')
+    if (!hub) return err(404, 'unknown hub')
+    if (!hubAccess(req, hub)) return err(401, 'HUB_PASSWORD_REQUIRED', { hub: { key: hub.key, name: hub.name } })
+    return handleModule(path, method, body, hub, url)
   }
 
   // 챗봇 점검 모듈
@@ -237,14 +249,20 @@ async function handle(req, url) {
             title: c.ok ? `${b.name} 점검 정상` : `${b.name} 점검 실패`, detail: c.ok ? null : String(c.detail ?? '').slice(0, 80), at: c.checked_at })
         }
       }
+      events.push(...moduleEvents(hubs, (hid, key) => features.some((f) => f.hub_id === hid && f.feature_key === key && f.enabled)))
       events.sort((a, b) => new Date(b.at) - new Date(a.at))
+      const LABELS = { 'chatbot-monitoring': '챗봇 점검', 'grafana-reports': 'Grafana 리포트', mailer: '메일 발송' }
+      const extra = features.filter((f) => f.enabled && (f.feature_key === 'grafana-reports' || f.feature_key === 'mailer')).map((f) => {
+        const h = hubs.find((x) => x.id === f.hub_id)
+        return { hubKey: h.key, hubName: h.name, module: f.feature_key, label: LABELS[f.feature_key], lastRun: ago(f.feature_key === 'mailer' ? 95 : 180), ok: true }
+      })
       const automations = features.filter((f) => f.enabled && f.feature_key === 'chatbot-monitoring').map((f) => {
         const h = hubs.find((x) => x.id === f.hub_id)
         const latest = bots.filter((b) => b.hub_id === h.id).flatMap((b) => b.checks).sort((a, b) => new Date(b.checked_at) - new Date(a.checked_at))
         const batch = latest.slice(0, bots.filter((b) => b.hub_id === h.id).length || latest.length)
         return { hubKey: h.key, hubName: h.name, module: f.feature_key, label: '챗봇 점검', lastRun: batch[0]?.checked_at ?? null, ok: batch.length ? batch.every((c) => c.ok) : null }
       })
-      return json({ events: events.slice(0, 15), automations })
+      return json({ events: events.slice(0, 15), automations: [...automations, ...extra] })
     }
     if (p === '/security' && method === 'GET') return json({ modules: MODULES.map((x) => securityRow(x.key)) })
     const sm = p.match(/^\/security\/([^/]+)$/)

@@ -86,7 +86,7 @@ describe('인증 경계 — 허브 비밀번호', () => {
 describe('GET /api/chatbot/bots', () => {
 
   it('봇 목록 + recent_checks(오래된순) 병합 + hub_id 스코프', async () => {
-    const botsQ = mockQuery({ data: [{ id: 'b1', name: '코기' }, { id: 'b2', name: 'FAQ' }], error: null })
+    const botsQ = mockQuery({ data: [{ id: 'b1', name: '샘플봇' }, { id: 'b2', name: 'FAQ' }], error: null })
     queue(botsQ, mockQuery({
       data: [
         { chatbot_id: 'b1', ok: false, detail: 'timeout', duration_ms: 60000, checked_at: '2026-06-10T00:00:00Z' },
@@ -120,12 +120,12 @@ describe('GET /api/chatbot/bots', () => {
 
 describe('POST /api/chatbot/bots', () => {
   it('봇 생성 201 + hub_id 주입', async () => {
-    const bot = { name: '코기', url: 'https://x.y', scenario: [{ say: '안녕', expect: '도와' }] }
+    const bot = { name: '샘플봇', url: 'https://x.y', scenario: [{ say: '안녕', expect: '도와' }] }
     const q = mockQuery({ data: { id: 'b1', ...bot }, error: null })
     queue(q)
     const res = await request(app).post('/api/chatbot/bots').set(AUTH).send(bot)
     expect(res.status).toBe(201)
-    expect(res.body.name).toBe('코기')
+    expect(res.body.name).toBe('샘플봇')
     expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({ hub_id: HUB_ID }))
   })
 

@@ -300,19 +300,23 @@ router.get('/overview', auth, async (_req, res) => {
 // 모듈별 자동화 표시명 (스케줄이 있는 모듈만 automations에 노출)
 const AUTOMATION_LABELS = {
   'chatbot-monitoring': '챗봇 점검',
+  'grafana-reports': 'Grafana 리포트',
+  mailer: '메일 발송',
 }
 
 // GET /api/admin/activity — 최근 이벤트 피드 + 허브별 자동화 상태(읽기 전용, 소스별 방어적 조회)
 router.get('/activity', auth, async (_req, res) => {
   try {
-    // 4개 소스는 서로 기다릴 필요가 없어 동시에 보낸다(2026-11-12, overview와 같은 이유). 소스별 방어는 그대로 —
+    // 6개 소스는 서로 기다릴 필요가 없어 동시에 보낸다(2026-11-12, overview와 같은 이유). 소스별 방어는 그대로 —
     // 허브 목록 실패만 전체 500이고, 나머지는 실패하면 그 소스만 비운다.
     const soft = (p) => p.catch(() => [])
-    const [hubs, feats, bots, checkLogs] = await Promise.all([
+    const [hubs, feats, bots, checkLogs, grafanaSettings, mailJobs] = await Promise.all([
       repos.hubs.listHubIdNames(),
       soft(repos.features.listAllFlags()), // 실패 시 automations만 비움
       soft(repos.chatbots.listAllBotNames()), // 실패 시 chatbot 이벤트/자동화만 스킵
       soft(repos.checks.listRecentEvents(200)),
+      soft(repos.grafana.settings.listActivity()), // 실패 시 grafana 이벤트/자동화만 스킵
+      soft(repos.mailer.listAllJobNames()), // 실패 시 mailer 이벤트/자동화만 스킵
     ])
     const hubsById = new Map(hubs.map(h => [h.id, h]))
     const botsById = new Map(bots.map(b => [b.id, b]))
@@ -321,6 +325,21 @@ router.get('/activity', auth, async (_req, res) => {
       if (!botIdsByHub.has(b.hub_id)) botIdsByHub.set(b.hub_id, [])
       botIdsByHub.get(b.hub_id).push(b.id)
     }
+
+    const jobsById = new Map(mailJobs.map(j => [j.id, j]))
+    const jobIdsByHub = new Map()
+    for (const j of mailJobs) {
+      if (!jobIdsByHub.has(j.hub_id)) jobIdsByHub.set(j.hub_id, [])
+      jobIdsByHub.get(j.hub_id).push(j.id)
+    }
+
+    let sendLogs = []
+    try {
+      const jobIds = mailJobs.map(j => j.id)
+      if (jobIds.length) {
+        sendLogs = await repos.mailer.listSendEvents(jobIds, 200)
+      }
+    } catch { /* 조회 실패 시 mailer 이벤트만 스킵 */ }
 
     // ---- events: 소스별로 만든 뒤 병합 → at 내림차순 → 15건 ----
     const events = []
@@ -335,6 +354,32 @@ router.get('/activity', auth, async (_req, res) => {
         title: r.ok ? `${botName} 점검 정상` : `${botName} 점검 실패`,
         detail: r.ok ? null : String(r.detail ?? '').slice(0, 80),
         at: r.checked_at,
+      })
+    }
+    for (const s of grafanaSettings) {
+      if (!s.last_analysis) continue
+      const hub = hubsById.get(s.hub_id)
+      events.push({
+        type: 'grafana',
+        severity: 'good',
+        hubKey: hub?.key ?? null,
+        hubName: hub?.name ?? null,
+        title: 'Grafana 분석/리포트',
+        detail: String(s.last_analysis?.summary ?? '').slice(0, 80),
+        at: s.last_analysis?.generated_at ?? s.last_sent_date ?? s.last_analysis_date ?? null,
+      })
+    }
+    for (const l of sendLogs.slice(0, 10)) {
+      const job = jobsById.get(l.job_id)
+      const hub = job ? hubsById.get(job.hub_id) : null
+      events.push({
+        type: 'mailer',
+        severity: l.ok ? 'good' : 'crit',
+        hubKey: hub?.key ?? null,
+        hubName: hub?.name ?? null,
+        title: l.ok ? `${job?.name ?? '메일'} 발송` : `${job?.name ?? '메일'} 발송 실패`,
+        detail: l.ok ? null : String(l.error ?? '').slice(0, 80),
+        at: l.sent_at,
       })
     }
     events.sort((a, b) => new Date(b.at) - new Date(a.at))
@@ -366,6 +411,15 @@ router.get('/activity', auth, async (_req, res) => {
             lastRun = hubLogs[0].checked_at
             ok = hubLogs.every(r => r.ok)
           }
+        } else if (mod === 'grafana-reports') {
+          const s = grafanaSettings.find(row => row.hub_id === hubId)
+          lastRun = s?.last_analysis?.generated_at ?? s?.last_sent_date ?? s?.last_analysis_date ?? null
+          ok = true
+        } else if (mod === 'mailer') {
+          const jobIds = jobIdsByHub.get(hubId) ?? []
+          const hubSendLogs = sendLogs.filter(l => jobIds.includes(l.job_id))
+          lastRun = hubSendLogs[0]?.sent_at ?? null
+          ok = true
         }
         automations.push({ hubKey: hub.key, hubName: hub.name, module: mod, label, lastRun, ok })
       }

@@ -1,6 +1,6 @@
 // 챗봇 일일 시나리오 체크 러너 (GitHub Actions에서 실행)
 // 필요 환경변수: (외부) SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY · (사내) SMARTHUB_EDITION=internal, DATABASE_URL (선택: HUB_URL·PUBLIC_URL·TEAM_HOST_SUFFIX — 알림 링크, server/lib/hubUrl.js · HUB_KEY, BOT_ID, CATEGORY)
-// HUB_KEY(기본 delivery)로 대상 허브를 한정한다.
+// HUB_KEY(기본 delivery)로 대상 허브를 한정한다. cs 라이브 테이블은 접근하지 않는다.
 import { chromium } from 'playwright'
 import { repos } from '../server/data/index.js'
 import { mkdir } from 'node:fs/promises'
@@ -122,9 +122,7 @@ async function notifyFailures(failures, hubId, hubKey) {
   const recipients = settings?.recipients ?? []
   if (!recipients.length) { console.log('수신자 미설정 — 메일 생략'); return }
 
-  // 발신 계정은 환경변수로 받는다(ALERT_SMTP_USER·ALERT_SMTP_PASSWORD) — 없으면 메일은 생략한다.
-  const sender = process.env.ALERT_SMTP_USER && process.env.ALERT_SMTP_PASSWORD
-    ? { email: process.env.ALERT_SMTP_USER, app_password: process.env.ALERT_SMTP_PASSWORD } : null
+  const sender = await repos.mailer.getDefaultSender().catch(() => null)
   if (!sender) { console.log('발신 계정 없음 — 메일 생략'); return }
 
   const { subject, body } = buildFailureMail(failures, hubPageUrl(hubKey, 'chatbot-monitoring') || `http://localhost:5173/hub/${hubKey}/chatbot-monitoring`)

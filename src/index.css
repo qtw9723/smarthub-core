@@ -18,6 +18,7 @@
   --color-status-warn: #fbbf24;
   --color-status-idle: #71717a;
   --color-status-info: #60a5fa;
+  /* 외부 UI를 이식할 때는 원본의 primary-* 대신 accent 계열 토큰으로 바꿔서 가져온다. */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -873,8 +874,43 @@ body {
 }
 
 /* ── 발신 계정 페이지 ── */
+.sender-page { max-width: 920px; margin: 24px auto; padding: 0 24px; }
+.sender-list { display: flex; flex-direction: column; gap: 10px; }
+.sender-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px;
+  transition: border-color 150ms;
+}
+.sender-card:hover { border-color: var(--color-border-strong); }
+.sender-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: color-mix(in srgb, var(--color-status-error) 10%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--color-status-error); font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+.sender-info { flex: 1; min-width: 0; }
+.sender-email { font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
+.sender-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
 
 /* ── 발신자 셀렉트 ── */
+.sender-select-wrap { position: relative; }
+.sender-select {
+  width: 100%;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9px; padding: 9px 36px 9px 12px;
+  font-size: 14px; color: var(--color-text-primary);
+  appearance: none; cursor: pointer;
+  font-family: inherit; outline: none;
+}
+.sender-select:focus { border-color: var(--color-accent); }
+.sender-select-arrow {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none; color: var(--color-text-secondary); font-size: 11px;
+}
 
 /* ── 앱 비밀번호 입력 ── */
 .pw-input-wrap { position: relative; }
@@ -1015,12 +1051,64 @@ body {
   color: var(--color-text-secondary);
 }
 
-/* ── 모듈 공통 ── */
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* ── Grafana 리포트 ── */
+.grafana-wrap { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+.grafana-error {
+  background: color-mix(in srgb, var(--color-status-error) 12%, transparent);
+  color: var(--color-status-error);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
+}
+.grafana-summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px;
+  font-weight: 600; font-size: 14px; margin-bottom: 20px;
+  border: 1px solid var(--color-border-subtle);
+}
+.grafana-summary.ok { background: color-mix(in srgb, var(--color-status-ok) 8%, transparent); color: var(--color-status-ok); }
+.grafana-summary.alert { background: color-mix(in srgb, var(--color-status-error) 10%, transparent); color: var(--color-status-error); }
+.grafana-time { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+.grafana-section { margin-bottom: 26px; }
+.grafana-section-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin: 0 0 12px; }
+.grafana-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.grafana-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 16px; border-radius: 10px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+}
+.grafana-card.warn {
+  border-color: color-mix(in srgb, var(--color-status-error) 40%, transparent);
+  background: color-mix(in srgb, var(--color-status-error) 6%, var(--color-bg-surface));
+}
+.grafana-card.na { opacity: 0.7; }
+.grafana-card-label { font-size: 12px; color: var(--color-text-secondary); }
+.grafana-card-value { font-size: 26px; font-weight: 700; color: var(--color-text-primary); }
+.grafana-card.warn .grafana-card-value { color: var(--color-status-error); }
+.grafana-card.na .grafana-card-value { color: var(--color-text-faint); font-size: 15px; }
+.grafana-card-threshold { font-size: 11px; color: var(--color-text-faint); }
+.grafana-log-group { margin-bottom: 14px; }
+.grafana-log-head {
+  font-size: 13px; padding: 8px 12px; border-radius: 8px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+}
+.grafana-log-head.warn { color: var(--color-status-error); }
+.grafana-log-head.ok { color: var(--color-status-ok); }
+.grafana-log-head.na { color: var(--color-text-secondary); }
+.grafana-log-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.grafana-log-table td { padding: 7px 10px; border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; }
+.grafana-log-table tr { cursor: pointer; border-left: 3px solid var(--color-status-error); }
+.grafana-log-table tr:hover td { background: var(--color-bg-hover); }
+.grafana-log-table tr.expanded .grafana-log-msg { white-space: pre-wrap; }
+.grafana-log-time { color: var(--color-text-secondary); font-size: 11px; white-space: nowrap; width: 130px; text-align: right; }
+.grafana-log-msg { color: var(--color-text-primary); font-size: 12px; word-break: break-word; }
+.spin { animation: grafana-spin 1s linear infinite; }
+@keyframes grafana-spin { to { transform: rotate(360deg); } }
 
 /* ── AI 점검 요약 ── */
 .ai-summary-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ai-summary-head .grafana-section-title { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .ai-reanalyze {
   display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; height: 30px;
   font-size: 12px; font-family: inherit; color: var(--color-text-secondary);
@@ -1142,6 +1230,17 @@ body {
   font-family: var(--font-mono);
 }
 
+.grafana-settings { max-width: 520px; }
+.grafana-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.grafana-toggle input { width: 15px; height: 15px; accent-color: var(--color-accent); }
+
 /* ── 모바일 (~640px) ── */
 @media (max-width: 640px) {
   .layout { flex-direction: column-reverse; }
@@ -1175,9 +1274,13 @@ body {
     height: 100dvh; max-height: 100dvh;
     border-radius: 0; border: none;
   }
-  .app-header { padding: 0 16px; }}
 
-/* ── 설정 페이지 레이아웃 ── */
+  .grafana-cards { grid-template-columns: repeat(2, 1fr); }
+  .app-header { padding: 0 16px; }
+  .job-list, .sender-page { padding: 0 16px; }
+}
+
+/* ── Grafana 설정 페이지 레이아웃 ── */
 .gset { display: flex; flex-direction: column; }
 .gset-section { margin-bottom: 24px; padding: 18px 18px 20px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-bg-surface); }
 .gset-section-title { font-size: 14px; font-weight: 700; margin: 0 0 16px; color: var(--color-text-primary); }
@@ -1198,7 +1301,7 @@ body {
 .gset-savebar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 4px; }
 .gset-savebar .form-hint-error { margin: 0; }
 
-/* ── 쿼리 편집기 (데스크톱 단일 행 + 결과 서브라인) ── */
+/* ── Grafana 쿼리 편집기 (데스크톱 단일 행 + 결과 서브라인) ── */
 .query-list { display: flex; flex-direction: column; }
 .query-row { padding: 8px 6px 9px 10px; border-bottom: 1px solid var(--color-border-subtle); border-left: 3px solid transparent; }
 .query-row.s-ok { border-left-color: var(--color-status-ok); }
@@ -1521,24 +1624,16 @@ body {
   .bo .hub-delete { width: 30px; height: 30px; }
   .bo .hub-risk-ack { min-height: 28px; padding: 4px 10px; }
 }
+
+/* ── 문서 변환 도구(sheet-to-schema·doc-to-api) 본문 컨테이너 ──
+   두 도구도 다른 모듈과 같은 셸을 쓴다: .app + AppHeader + 본문 wrap.
+   .grafana-wrap과 같은 역할(패딩 + 최대폭)이며, 도구 패널이 쓰는 레이아웃(py-8 px-4 md:px-8, mx-auto max-w-[900px])을 대신한다.
+   ※ 색은 이 클래스가 정하지 않는다 — 패널 내부가 SmartHub 테마 토큰
+   (bg-bg-surface·text-text-primary·accent 등)을 직접 쓰므로 body의 어두운 배경을
+   그대로 물려받는다. 예전에는 여기서 밝은 섬(#F8FAFC)을 깔았지만, 어두운 앱
+   안에서 흰 페이지 하나만 튀어 보였다. */
+.doc-wrap { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
 .doc-desc { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 18px; }
 
-/* 모듈 패널 공통 레이아웃 */
 .panel-wrap { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
 .settings-form { max-width: 520px; }
-
-/* 무상태 도구 모듈(csv-json · cron-explain · text-diff) */
-.tool-body { display: flex; flex-direction: column; gap: 14px; }
-.tool-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.tool-bar .btn.active { border-color: var(--color-accent); color: var(--color-accent); }
-.tool-select { width: auto; }
-.tool-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-@media (max-width: 720px) { .tool-cols { grid-template-columns: 1fr; } }
-.tool-area { min-height: 220px; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; }
-.tool-mono { font-family: var(--font-mono); }
-.tool-result { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
-.tool-list { margin: 0; padding-left: 20px; list-style: decimal; color: var(--color-text-secondary); font-size: 14px; line-height: 1.8; }
-.tool-diff { margin: 0; padding: 10px 0; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-bg-surface); font-family: var(--font-mono); font-size: 13px; overflow: auto; }
-.tool-diff div { padding: 1px 14px; white-space: pre-wrap; }
-.diff-add { background: color-mix(in srgb, var(--color-status-ok) 14%, transparent); color: var(--color-status-ok); }
-.diff-del { background: color-mix(in srgb, var(--color-status-error) 14%, transparent); color: var(--color-status-error); }

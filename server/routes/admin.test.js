@@ -45,7 +45,7 @@ app.use('/api/admin', adminRouter)
 const AUTH = { 'x-app-password': 'test-password' }
 const H1 = '00000000-0000-4000-8000-000000000001' // 허브 id(uuid) — 경로의 :id는 형식 검사를 거친다
 const MISSING = '00000000-0000-4000-8000-0000000000ff' // 형식은 맞지만 없는 허브
-beforeEach(() => { vi.resetAllMocks(); process.env.APP_PASSWORD = 'test-password' })
+beforeEach(() => { vi.clearAllMocks(); process.env.APP_PASSWORD = 'test-password' })
 
 describe('GET /api/admin/modules', () => {
   it('등록 모듈 키 목록 반환 (chatbot-monitoring 포함)', async () => {
@@ -219,6 +219,16 @@ describe('hub_features', () => {
     )
   })
 
+  // 서버 레지스트리 기반 검증이라, sheet-to-schema가 등록되지 않으면 여기서 400 unknown module로
+  // 막혀 어드민 토글 자체가 동작하지 않는다.
+  it('PUT feature: sheet-to-schema도 알려진 모듈로 통과한다', async () => {
+    const hubQ = mockQuery({ data: { id: 'h1', key: 'cs', name: 'CS' }, error: null })
+    const featQ = mockQuery({ data: { hub_id: 'h1', feature_key: 'sheet-to-schema', enabled: true }, error: null })
+    mockFrom.mockReturnValueOnce(hubQ).mockReturnValueOnce(featQ)
+    const res = await request(app).put('/api/admin/hubs/cs/features/sheet-to-schema').set(AUTH).send({ enabled: true })
+    expect(res.status).toBe(200)
+  })
+
   it('PUT feature: 알 수 없는 모듈이면 400', async () => {
     const res = await request(app).put('/api/admin/hubs/cs/features/nope').set(AUTH).send({ enabled: true })
     expect(res.status).toBe(400)
@@ -239,7 +249,7 @@ describe('GET /api/admin/overview (모듈 레지스트리 순회)', () => {
       // 2) hub_features
       .mockReturnValueOnce(mockQuery({ data: [{ hub_id: 'h1', feature_key: 'chatbot-monitoring', enabled: true }], error: null }))
       // 3) chatbot overview → hub_chatbots
-      .mockReturnValueOnce(mockQuery({ data: [{ id: 'b1', name: '코기', enabled: true, category: null }], error: null }))
+      .mockReturnValueOnce(mockQuery({ data: [{ id: 'b1', name: '샘플봇', enabled: true, category: null }], error: null }))
       // 4) chatbot overview → hub_chatbot_check_log
       .mockReturnValueOnce(mockQuery({ data: [{ chatbot_id: 'b1', ok: false, checked_at: '2026-07-21T00:00:00Z' }], error: null }))
     const res = await request(app).get('/api/admin/overview').set(AUTH)
@@ -248,6 +258,17 @@ describe('GET /api/admin/overview (모듈 레지스트리 순회)', () => {
     const feat = res.body[0].features.find(f => f.key === 'chatbot-monitoring')
     expect(feat.summary.bot_count).toBe(1)
     expect(feat.summary.failing_count).toBe(1)
+  })
+
+  // 서버 파트 없는 무상태 툴(sheet-to-schema) — 레지스트리에 있으니 features에 나타나야 하고
+  // overview가 없으니 summary는 빈 객체다(어드민 StatRow 기본 분기 → "요약 없음").
+  it('overview 없는 모듈(sheet-to-schema)도 features에 { key, summary: {} }로 나타난다', async () => {
+    mockFrom
+      .mockReturnValueOnce(mockQuery({ data: [{ id: 'h1', key: 'cs', name: 'CS', enabled: true }], error: null }))
+      .mockReturnValueOnce(mockQuery({ data: [{ hub_id: 'h1', feature_key: 'sheet-to-schema', enabled: true }], error: null }))
+    const res = await request(app).get('/api/admin/overview').set(AUTH)
+    expect(res.status).toBe(200)
+    expect(res.body[0].features).toEqual([{ key: 'sheet-to-schema', summary: {} }])
   })
 
   it('모듈이 꺼진 허브는 features 비어있음', async () => {
@@ -262,17 +283,17 @@ describe('GET /api/admin/overview (모듈 레지스트리 순회)', () => {
   // 2026-11-12 성능: 허브 × 모듈 요약을 하나씩 기다리면 외부판(Supabase REST, 조회당 수십 ms)에서 조회 수만큼 늘어난다.
   it('허브 목록·플래그를 동시에, 허브별 모듈 요약도 동시에 조회한다', async () => {
     const hubs = deferredQuery({ data: [{ id: 'h1', key: 'a', name: 'A', enabled: true }, { id: 'h2', key: 'b', name: 'B', enabled: true }], error: null })
-    const flags = deferredQuery({ data: [{ hub_id: 'h1', feature_key: 'chatbot-monitoring', enabled: true }, { hub_id: 'h2', feature_key: 'chatbot-monitoring', enabled: true }], error: null })
-    const bots1 = deferredQuery({ data: [], error: null })
-    const bots2 = deferredQuery({ data: [], error: null })
-    mockFrom.mockReturnValueOnce(hubs.q).mockReturnValueOnce(flags.q).mockReturnValueOnce(bots1.q).mockReturnValueOnce(bots2.q)
+    const flags = deferredQuery({ data: [{ hub_id: 'h1', feature_key: 'mailer', enabled: true }, { hub_id: 'h2', feature_key: 'mailer', enabled: true }], error: null })
+    const jobs1 = deferredQuery({ data: [], error: null })
+    const jobs2 = deferredQuery({ data: [], error: null })
+    mockFrom.mockReturnValueOnce(hubs.q).mockReturnValueOnce(flags.q).mockReturnValueOnce(jobs1.q).mockReturnValueOnce(jobs2.q)
     const pending = request(app).get('/api/admin/overview').set(AUTH).then((r) => r)
     for (let i = 0; i < 20 && mockFrom.mock.calls.length < 2; i++) await tick()
     expect(mockFrom).toHaveBeenCalledTimes(2) // hubs 응답 전에 hub_features도 이미 출발
     hubs.release(); flags.release()
     for (let i = 0; i < 20 && mockFrom.mock.calls.length < 4; i++) await tick()
-    expect(mockFrom).toHaveBeenCalledTimes(4) // 허브 2개의 챗봇 요약이 함께 출발
-    bots1.release(); bots2.release()
+    expect(mockFrom).toHaveBeenCalledTimes(4) // 허브 2개의 mailer 요약이 함께 출발
+    jobs1.release(); jobs2.release()
     const res = await pending
     expect(res.status).toBe(200)
     expect(res.body.map((x) => x.hub.key)).toEqual(['a', 'b']) // 순서는 허브 목록 그대로
@@ -297,32 +318,58 @@ describe('DELETE /api/admin/hubs/:id', () => {
 })
 
 describe('GET /api/admin/activity', () => {
-  it('이벤트/자동화 + severity 매핑', async () => {
+  it('이벤트/자동화 병합 + severity 매핑 + 최신순 정렬', async () => {
     mockFrom
       // 1) hubs
       .mockReturnValueOnce(mockQuery({ data: [{ id: 'h1', key: 'delivery', name: 'Delivery' }], error: null }))
       // 2) hub_features
-      .mockReturnValueOnce(mockQuery({ data: [{ hub_id: 'h1', feature_key: 'chatbot-monitoring', enabled: true }], error: null }))
+      .mockReturnValueOnce(mockQuery({
+        data: [
+          { hub_id: 'h1', feature_key: 'chatbot-monitoring', enabled: true },
+          { hub_id: 'h1', feature_key: 'mailer', enabled: true },
+        ], error: null,
+      }))
       // 3) hub_chatbots
-      .mockReturnValueOnce(mockQuery({ data: [{ id: 'b1', hub_id: 'h1', name: '코기' }], error: null }))
+      .mockReturnValueOnce(mockQuery({ data: [{ id: 'b1', hub_id: 'h1', name: '샘플봇' }], error: null }))
       // 4) hub_chatbot_check_log
       .mockReturnValueOnce(mockQuery({
         data: [{ chatbot_id: 'b1', hub_id: 'h1', ok: false, detail: '접속 타임아웃 발생', checked_at: '2026-07-23T01:00:00Z' }],
         error: null,
       }))
+      // 5) grafana_report_settings
+      .mockReturnValueOnce(mockQuery({
+        data: [{
+          hub_id: 'h1',
+          last_analysis: { summary: '에러 로그 요약입니다', generated_at: '2026-07-22T09:00:00Z' },
+          last_analysis_date: '2026-07-22', last_sent_date: '2026-07-22T09:05:00Z',
+        }], error: null,
+      }))
+      // 6) mail_jobs
+      .mockReturnValueOnce(mockQuery({ data: [{ id: 'j1', hub_id: 'h1', name: '뉴스레터' }], error: null }))
+      // 7) send_log
+      .mockReturnValueOnce(mockQuery({ data: [{ job_id: 'j1', ok: true, error: null, sent_at: '2026-07-23T02:00:00Z' }], error: null }))
 
     const res = await request(app).get('/api/admin/activity').set(AUTH)
     expect(res.status).toBe(200)
 
-    expect(res.body.events).toHaveLength(1)
-    const chatbotEvt = res.body.events[0]
-    expect(chatbotEvt.type).toBe('chatbot')
+    expect(res.body.events).toHaveLength(3)
+    expect(res.body.events[0].type).toBe('mailer') // 가장 최근(02:00)이 맨 앞
+    const chatbotEvt = res.body.events.find(e => e.type === 'chatbot')
     expect(chatbotEvt.severity).toBe('crit')
-    expect(chatbotEvt.title).toBe('코기 점검 실패')
+    expect(chatbotEvt.title).toBe('샘플봇 점검 실패')
     expect(chatbotEvt.hubKey).toBe('delivery')
+    const grafanaEvt = res.body.events.find(e => e.type === 'grafana')
+    expect(grafanaEvt.severity).toBe('good')
+    expect(grafanaEvt.detail).toBe('에러 로그 요약입니다')
+    const mailerEvt = res.body.events.find(e => e.type === 'mailer')
+    expect(mailerEvt.severity).toBe('good')
+    expect(mailerEvt.title).toBe('뉴스레터 발송')
 
-    expect(res.body.automations).toHaveLength(1)
-    expect(res.body.automations[0]).toMatchObject({ hubKey: 'delivery', module: 'chatbot-monitoring', label: '챗봇 점검', ok: false, lastRun: '2026-07-23T01:00:00Z' })
+    expect(res.body.automations).toHaveLength(2)
+    const chatbotAuto = res.body.automations.find(a => a.module === 'chatbot-monitoring')
+    expect(chatbotAuto).toMatchObject({ hubKey: 'delivery', label: '챗봇 점검', ok: false, lastRun: '2026-07-23T01:00:00Z' })
+    const mailerAuto = res.body.automations.find(a => a.module === 'mailer')
+    expect(mailerAuto).toMatchObject({ hubKey: 'delivery', label: '메일 발송', ok: true, lastRun: '2026-07-23T02:00:00Z' })
   })
 
   it('데이터가 비어 있어도 500 없이 빈 배열 반환', async () => {
@@ -331,6 +378,8 @@ describe('GET /api/admin/activity', () => {
       .mockReturnValueOnce(mockQuery({ data: [], error: null })) // hub_features
       .mockReturnValueOnce(mockQuery({ data: [], error: null })) // hub_chatbots
       .mockReturnValueOnce(mockQuery({ data: [], error: null })) // hub_chatbot_check_log
+      .mockReturnValueOnce(mockQuery({ data: [], error: null })) // grafana_report_settings
+      .mockReturnValueOnce(mockQuery({ data: [], error: null })) // mail_jobs (send_log는 job 없으면 스킵)
     const res = await request(app).get('/api/admin/activity').set(AUTH)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ events: [], automations: [] })
@@ -342,18 +391,20 @@ describe('GET /api/admin/activity', () => {
       .mockReturnValueOnce(mockQuery({ data: null, error: { message: 'boom' } })) // hub_features 에러
       .mockReturnValueOnce(mockQuery({ data: [], error: null })) // hub_chatbots
       .mockReturnValueOnce(mockQuery({ data: [], error: null })) // hub_chatbot_check_log
+      .mockReturnValueOnce(mockQuery({ data: [], error: null })) // grafana_report_settings
+      .mockReturnValueOnce(mockQuery({ data: [], error: null })) // mail_jobs
     const res = await request(app).get('/api/admin/activity').set(AUTH)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ events: [], automations: [] })
   })
 
 
-  it('서로 기다릴 필요 없는 4개 소스를 동시에 조회한다', async () => {
-    const ds = Array.from({ length: 4 }, () => deferredQuery({ data: [], error: null }))
+  it('서로 기다릴 필요 없는 6개 소스를 동시에 조회한다', async () => {
+    const ds = Array.from({ length: 6 }, () => deferredQuery({ data: [], error: null }))
     ds.forEach((d) => mockFrom.mockReturnValueOnce(d.q))
     const pending = request(app).get('/api/admin/activity').set(AUTH).then((r) => r)
-    for (let i = 0; i < 20 && mockFrom.mock.calls.length < 4; i++) await tick()
-    expect(mockFrom).toHaveBeenCalledTimes(4)
+    for (let i = 0; i < 20 && mockFrom.mock.calls.length < 6; i++) await tick()
+    expect(mockFrom).toHaveBeenCalledTimes(6)
     ds.forEach((d) => d.release())
     const res = await pending
     expect(res.body).toEqual({ events: [], automations: [] })
@@ -368,15 +419,16 @@ describe('GET /api/admin/activity', () => {
 describe('GET/PUT /api/admin/security — 모듈 보안 레벨', () => {
   it('인증 없으면 401', async () => {
     expect((await request(app).get('/api/admin/security')).status).toBe(401)
-    expect((await request(app).put('/api/admin/security/chatbot-monitoring').send({ level: 'L1', reason: 'x' })).status).toBe(401)
+    expect((await request(app).put('/api/admin/security/mailer').send({ level: 'L1', reason: 'x' })).status).toBe(401)
   })
 
   it('GET: DB 행이 있으면 그 레벨, 없으면 기본값', async () => {
-    mockFrom.mockReturnValueOnce(mockQuery({ data: [{ module_key: 'chatbot-monitoring', level: 'L1', reason: '사내 열람만', updated_at: 't' }], error: null }))
+    mockFrom.mockReturnValueOnce(mockQuery({ data: [{ module_key: 'mailer', level: 'L2', reason: '사내 발송만', updated_at: 't' }], error: null }))
     const res = await request(app).get('/api/admin/security').set(AUTH)
     expect(res.status).toBe(200)
     const byKey = Object.fromEntries(res.body.modules.map(m => [m.key, m]))
-    expect(byKey['chatbot-monitoring']).toMatchObject({ defaultLevel: 'L2', level: 'L1', reason: '사내 열람만' })
+    expect(byKey.mailer).toMatchObject({ defaultLevel: 'L3', level: 'L2', reason: '사내 발송만' })
+    expect(byKey['sheet-to-schema']).toMatchObject({ defaultLevel: 'L0', level: 'L0', reason: null })
   })
 
   it('GET: DB 오류면 500 — 백오피스는 기본값으로 판정한다', async () => {
@@ -385,7 +437,7 @@ describe('GET/PUT /api/admin/security — 모듈 보안 레벨', () => {
   })
 
   it('기본보다 낮추는데 사유가 없으면 400 REASON_REQUIRED, DB에 쓰지 않는다', async () => {
-    const res = await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L1', reason: '  ' })
+    const res = await request(app).put('/api/admin/security/mailer').set(AUTH).send({ level: 'L1', reason: '  ' })
     expect(res.status).toBe(400)
     expect(res.body.error).toBe('REASON_REQUIRED')
     expect(mockFrom).not.toHaveBeenCalled()
@@ -394,35 +446,35 @@ describe('GET/PUT /api/admin/security — 모듈 보안 레벨', () => {
   it('사유와 함께 낮추면 저장한다', async () => {
     const q = mockQuery({ data: null, error: null })
     mockFrom.mockReturnValueOnce(q)
-    const res = await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L1', reason: '사내만' })
+    const res = await request(app).put('/api/admin/security/mailer').set(AUTH).send({ level: 'L1', reason: '사내만' })
     expect(res.status).toBe(200)
-    expect(q.upsert.mock.calls[0][0]).toMatchObject({ module_key: 'chatbot-monitoring', level: 'L1', reason: '사내만' })
-    expect(res.body).toMatchObject({ key: 'chatbot-monitoring', defaultLevel: 'L2', level: 'L1', reason: '사내만' })
+    expect(q.upsert.mock.calls[0][0]).toMatchObject({ module_key: 'mailer', level: 'L1', reason: '사내만' })
+    expect(res.body).toMatchObject({ key: 'mailer', defaultLevel: 'L3', level: 'L1', reason: '사내만' })
   })
 
   it('올리는 것은 사유 없이 저장한다', async () => {
     const q = mockQuery({ data: null, error: null })
     mockFrom.mockReturnValueOnce(q)
-    const res = await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L3' })
+    const res = await request(app).put('/api/admin/security/sheet-to-schema').set(AUTH).send({ level: 'L2' })
     expect(res.status).toBe(200)
-    expect(q.upsert.mock.calls[0][0]).toMatchObject({ module_key: 'chatbot-monitoring', level: 'L3' })
+    expect(q.upsert.mock.calls[0][0]).toMatchObject({ module_key: 'sheet-to-schema', level: 'L2' })
   })
 
   it('기본값으로 되돌리면 행을 지운다', async () => {
     const q = mockQuery({ data: null, error: null })
     mockFrom.mockReturnValueOnce(q)
-    const res = await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L2' })
+    const res = await request(app).put('/api/admin/security/mailer').set(AUTH).send({ level: 'L3' })
     expect(res.status).toBe(200)
     expect(q.delete).toHaveBeenCalled()
-    expect(q.eq).toHaveBeenCalledWith('module_key', 'chatbot-monitoring')
+    expect(q.eq).toHaveBeenCalledWith('module_key', 'mailer')
     expect(q.upsert).not.toHaveBeenCalled()
-    expect(res.body).toMatchObject({ level: 'L2', reason: null })
+    expect(res.body).toMatchObject({ level: 'L3', reason: null })
   })
 
   it('모르는 모듈·레벨·너무 긴 사유는 400', async () => {
     expect((await request(app).put('/api/admin/security/nope').set(AUTH).send({ level: 'L1' })).status).toBe(400)
-    expect((await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L7' })).status).toBe(400)
-    expect((await request(app).put('/api/admin/security/chatbot-monitoring').set(AUTH).send({ level: 'L1', reason: 'x'.repeat(201) })).status).toBe(400)
+    expect((await request(app).put('/api/admin/security/mailer').set(AUTH).send({ level: 'L7' })).status).toBe(400)
+    expect((await request(app).put('/api/admin/security/mailer').set(AUTH).send({ level: 'L1', reason: 'x'.repeat(201) })).status).toBe(400)
   })
 })
 
