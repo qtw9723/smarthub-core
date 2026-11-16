@@ -1526,3 +1526,19 @@ body {
 /* 모듈 패널 공통 레이아웃 */
 .panel-wrap { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
 .settings-form { max-width: 520px; }
+
+/* 무상태 도구 모듈(csv-json · cron-explain · text-diff) */
+.tool-body { display: flex; flex-direction: column; gap: 14px; }
+.tool-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tool-bar .btn.active { border-color: var(--color-accent); color: var(--color-accent); }
+.tool-select { width: auto; }
+.tool-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .tool-cols { grid-template-columns: 1fr; } }
+.tool-area { min-height: 220px; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; }
+.tool-mono { font-family: var(--font-mono); }
+.tool-result { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
+.tool-list { margin: 0; padding-left: 20px; list-style: decimal; color: var(--color-text-secondary); font-size: 14px; line-height: 1.8; }
+.tool-diff { margin: 0; padding: 10px 0; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-bg-surface); font-family: var(--font-mono); font-size: 13px; overflow: auto; }
+.tool-diff div { padding: 1px 14px; white-space: pre-wrap; }
+.diff-add { background: color-mix(in srgb, var(--color-status-ok) 14%, transparent); color: var(--color-status-ok); }
+.diff-del { background: color-mix(in srgb, var(--color-status-error) 14%, transparent); color: var(--color-status-error); }

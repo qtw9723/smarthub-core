@@ -3,7 +3,7 @@
 // 실제 화면(백오피스·허브·챗봇 점검 모듈)을 그대로 띄우되, /api/* 호출만 브라우저 안에서 응답한다.
 // 상태는 메모리에만 있다(새로고침하면 처음으로). 실운영이 아니며 외부로 나가는 요청은 없다.
 //
-// 데모 비밀번호: 마스터 키는 아무 값이나, 잠긴 허브 "finance"는 `demo`.
+// 비밀번호 단계는 없다 — 설치 시 마스터 키 쿠키를 심어 바로 들어간다.
 
 const MIN = 60 * 1000
 const ago = (m) => new Date(Date.now() - m * MIN).toISOString()
@@ -11,8 +11,8 @@ const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const err = (status, error, extra = {}) => json({ error, ...extra }, status)
 
-const MODULES = [{ key: 'chatbot-monitoring' }]
-const SECURITY_DEFAULT = { 'chatbot-monitoring': 'L2' }
+const MODULES = [{ key: 'chatbot-monitoring' }, { key: 'csv-json' }, { key: 'cron-explain' }, { key: 'text-diff' }]
+const SECURITY_DEFAULT = { 'chatbot-monitoring': 'L2', 'csv-json': 'L0', 'cron-explain': 'L0', 'text-diff': 'L0' }
 const LEVELS = ['L0', 'L1', 'L2', 'L3']
 
 let seq = 100
@@ -22,13 +22,16 @@ const uid = (p) => `${p}-${++seq}`
 const hubs = [
   { id: 'hub-1', key: 'delivery', name: '배달팀', enabled: true, password: null, security_ack_level: 'L2', created_at: ago(60 * 24 * 40) },
   { id: 'hub-2', key: 'support', name: '고객지원팀', enabled: true, password: null, security_ack_level: null, created_at: ago(60 * 24 * 30) },
-  { id: 'hub-3', key: 'finance', name: '재무팀', enabled: true, password: 'demo', security_ack_level: null, created_at: ago(60 * 24 * 12) },
+  { id: 'hub-3', key: 'finance', name: '재무팀', enabled: true, password: null, security_ack_level: 'L2', created_at: ago(60 * 24 * 12) },
 ]
-const features = [ // hub_features 매트릭스
-  { hub_id: 'hub-1', feature_key: 'chatbot-monitoring', enabled: true, config: {}, sort_order: 0 },
-  { hub_id: 'hub-2', feature_key: 'chatbot-monitoring', enabled: true, config: {}, sort_order: 0 },
-  { hub_id: 'hub-3', feature_key: 'chatbot-monitoring', enabled: false, config: {}, sort_order: 0 },
-]
+// hub_features 매트릭스 — 허브마다 켠 모듈이 다르다.
+const ENABLED = {
+  'hub-1': ['chatbot-monitoring', 'csv-json', 'cron-explain', 'text-diff'],
+  'hub-2': ['chatbot-monitoring', 'text-diff'],
+  'hub-3': ['csv-json', 'cron-explain'],
+}
+const features = Object.entries(ENABLED).flatMap(([hub_id, on]) =>
+  MODULES.map((m, i) => ({ hub_id, feature_key: m.key, enabled: on.includes(m.key), config: {}, sort_order: i })))
 const security = {} // module_key -> { level, reason, updated_at }
 
 const SCEN = (hello, ok) => [{ type: 'say', say: hello, expect: ok }, { type: 'say', say: '운영 시간 알려줘', expect: '평일' }]
@@ -202,7 +205,7 @@ async function handle(req, url) {
       const h = resolveHub(hm[1]); if (!h) return err(404, 'unknown hub')
       if (!hm[2] && method === 'GET') {
         return json({ hub: { id: h.id, key: h.key, name: h.name },
-          features: features.filter((f) => f.hub_id === h.id).map(({ hub_id: _x, ...f }) => f) })
+          features: features.filter((f) => f.hub_id === h.id).map((f) => ({ feature_key: f.feature_key, enabled: f.enabled, config: f.config, sort_order: f.sort_order })) })
       }
       if (hm[2] && method === 'PUT') {
         if (!MODULES.some((x) => x.key === hm[2])) return err(400, 'unknown module')
@@ -218,6 +221,7 @@ async function handle(req, url) {
       return json(hubs.map((h) => ({
         hub: { id: h.id, key: h.key, name: h.name, enabled: h.enabled, has_password: !!h.password, security_ack_level: h.security_ack_level },
         features: features.filter((f) => f.hub_id === h.id && f.enabled).map((f) => {
+          if (f.feature_key !== 'chatbot-monitoring') return { key: f.feature_key, summary: {} }
           const hb = bots.filter((b) => b.hub_id === h.id)
           const items = hb.map((b) => ({ id: b.id, name: b.name, enabled: b.enabled, category: b.category, last_check: lastCheck(b) ? { ok: lastCheck(b).ok, checked_at: lastCheck(b).checked_at } : null }))
           return { key: f.feature_key, summary: { bot_count: items.length, failing_count: items.filter((i) => i.last_check && !i.last_check.ok).length }, items }
@@ -234,7 +238,7 @@ async function handle(req, url) {
         }
       }
       events.sort((a, b) => new Date(b.at) - new Date(a.at))
-      const automations = features.filter((f) => f.enabled).map((f) => {
+      const automations = features.filter((f) => f.enabled && f.feature_key === 'chatbot-monitoring').map((f) => {
         const h = hubs.find((x) => x.id === f.hub_id)
         const latest = bots.filter((b) => b.hub_id === h.id).flatMap((b) => b.checks).sort((a, b) => new Date(b.checked_at) - new Date(a.checked_at))
         const batch = latest.slice(0, bots.filter((b) => b.hub_id === h.id).length || latest.length)
@@ -263,6 +267,7 @@ async function handle(req, url) {
 }
 
 export function installDemo() {
+  document.cookie = 'smarthub-password=demo; path=/' // 로그인 화면을 건너뛴다(데모)
   const realFetch = window.fetch.bind(window)
   window.fetch = async (input, init) => {
     const req = new Request(input, init)
@@ -273,6 +278,6 @@ export function installDemo() {
   }
   const bar = document.createElement('div')
   bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1d4ed8;color:#fff;font:12px/1.4 system-ui;padding:6px 12px;text-align:center'
-  bar.innerHTML = '실운영 아님 · 데모 — 실제 화면에 가짜 백엔드를 붙인 것입니다(새로고침하면 초기화). 비밀번호는 아무 값이나, 잠긴 허브 <b>finance</b>는 <b>demo</b> · <a style="color:#fff;text-decoration:underline" href="https://github.com/qtw9723/smarthub-core" target="_blank" rel="noreferrer">소스</a>'
+  bar.innerHTML = '실운영 아님 · 데모 — 실제 화면에 가짜 백엔드를 붙인 것입니다(새로고침하면 초기화). <a style="color:#fff;text-decoration:underline" href="https://github.com/qtw9723/smarthub-core" target="_blank" rel="noreferrer">소스</a>'
   document.body.appendChild(bar)
 }

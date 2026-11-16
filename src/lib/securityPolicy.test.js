@@ -21,7 +21,7 @@ describe('기본 레벨 표', () => {
     for (const m of getModules()) expect(MODULE_SECURITY_DEFAULTS[m.key], m.key).toBeTruthy()
   })
   it('기본값', () => {
-    expect(MAP).toEqual({ [KEY]: 'L2' })
+    expect(MAP).toEqual({ [KEY]: 'L2', 'csv-json': 'L0', 'cron-explain': 'L0', 'text-diff': 'L0' })
   })
   it('레벨 순위와 비밀번호 요구(L2부터)', () => {
     expect(levelRank('L0')).toBeLessThan(levelRank('L3'))

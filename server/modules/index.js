@@ -2,8 +2,11 @@
 // 서버 파트가 없는 모듈도 { key }만으로 등록할 수 있다 — 백오피스가 이
 // 레지스트리를 진실의 원천으로 쓰므로, 빠지면 어드민 토글·overview가 조용히 어긋난다.
 import chatbotMonitoring from './chatbot-monitoring/index.js'
+import csvJson from './csv-json/index.js'
+import cronExplain from './cron-explain/index.js'
+import textDiff from './text-diff/index.js'
 
-const MODULES = [chatbotMonitoring]
+const MODULES = [chatbotMonitoring, csvJson, cronExplain, textDiff]
 
 export function getModules() { return MODULES }
 export function getModule(key) { return MODULES.find(m => m.key === key) ?? null }

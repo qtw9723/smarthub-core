@@ -20,6 +20,9 @@ export const LEVEL_INFO = {
 // 새 모듈을 레지스트리에 넣으면 여기에도 넣는다(빠지면 테스트가 실패한다).
 export const MODULE_SECURITY_DEFAULTS = {
   'chatbot-monitoring': { level: 'L2', reason: '챗봇 목록과 점검 이력이 드러납니다' },
+  'csv-json': { level: 'L0', reason: '브라우저 안에서만 변환하고 아무것도 저장·전송하지 않습니다' },
+  'cron-explain': { level: 'L0', reason: '브라우저 안에서만 계산하고 아무것도 저장·전송하지 않습니다' },
+  'text-diff': { level: 'L0', reason: '브라우저 안에서만 비교하고 아무것도 저장·전송하지 않습니다' },
 }
 
 // 표에 없는 모듈은 보호 쪽으로 본다 — 빠뜨린 모듈이 조용히 공개 취급되면 안 된다.
